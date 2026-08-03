@@ -17,8 +17,8 @@ default_agent: qwen_max
 
 # OpenRouter 统一配置
 openrouter:
-  base_url: https://openrouter.ai/api/v1
-  api_key: 
+  base_url: https://api.ai.it.ufl.edu/v1
+  api_key: ${NAVIGATOR_API_KEY}
 
 # Agent配置列表
 agents:
@@ -181,6 +181,146 @@ agents:
     max_tokens: 8192
     description: "glm-4.7 (OpenRouter)"
 
+# ============================================================================
+# NaviGator Toolkit (University of Florida) - CLOUD models
+# ============================================================================
+  uf_gpt5:
+    provider: openai_compatible
+    model_name: gpt-5
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "GPT-5 (NaviGator Toolkit)"
+
+  uf_gpt5_mini:
+    provider: openai_compatible
+    model_name: gpt-5-mini
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "GPT-5 Mini (NaviGator Toolkit)"
+
+  uf_gpt4o:
+    provider: openai_compatible
+    model_name: gpt-4o
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "GPT-4o (NaviGator Toolkit)"
+
+  uf_claude_haiku:
+    provider: openai_compatible
+    model_name: claude-4.5-haiku
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "Claude 4.5 Haiku (NaviGator Toolkit)"
+
+  uf_claude_sonnet:
+    provider: openai_compatible
+    model_name: claude-4.6-sonnet
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "Claude 4.6 Sonnet (NaviGator Toolkit)"
+
+  uf_claude_opus:
+    provider: openai_compatible
+    model_name: claude-4.7-opus
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "Claude 4.7 Opus (NaviGator Toolkit)"
+
+  uf_gemini_pro:
+    provider: openai_compatible
+    model_name: gemini-3.0-pro
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "Gemini 3.0 Pro (NaviGator Toolkit)"
+
+  uf_gemini_flash:
+    provider: openai_compatible
+    model_name: gemini-3.0-flash
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "Gemini 3.0 Flash (NaviGator Toolkit)"
+
+  uf_mistral_large:
+    provider: openai_compatible
+    model_name: mistral-large-2
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "Mistral Large 2 (NaviGator Toolkit)"
+
+  # ============================================================================
+  # NaviGator Toolkit (University of Florida) - LOCAL models (HiPerGator)
+  # ============================================================================
+  uf_llama_3.3_70b:
+    provider: openai_compatible
+    model_name: llama-3.3-70b-instruct
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "Llama 3.3 70B Instruct (NaviGator Toolkit, local)"
+
+  uf_gpt_oss_120b:
+    provider: openai_compatible
+    model_name: gpt-oss-120b
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "GPT-OSS 120B (NaviGator Toolkit, local)"
+
+  uf_mistral_small_3.1:
+    provider: openai_compatible
+    model_name: mistral-small-3.1
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "Mistral Small 3.1 (NaviGator Toolkit, local)"
+
+  uf_gpt_oss_120b:
+    provider: openai_compatible
+    model_name: gpt-oss-120b
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "GPT-OSS 120B (NaviGator Toolkit, local)"
+
+  uf_mistral_small_3.1:
+    provider: openai_compatible
+    model_name: mistral-small-3.1
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "Mistral Small 3.1 (NaviGator Toolkit, local)"
+
+  uf_gemma_3_27b:
+    provider: openai_compatible
+    model_name: gemma-3-27b-it
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "Gemma 3 27B IT (NaviGator Toolkit, local)"
 
 # ============================================================================
 # 提供商默认配置
@@ -193,3 +333,5 @@ provider_defaults:
   qwen:
     timeout: 300
     max_retries: 2
+
+
