@@ -9,7 +9,9 @@ __pycache__/
 
 # Runtime outputs
 logs/
-results/
+results/*
+!results/baseline/
+!results/hardening/
 case_study_outputs/
 *.log
 *.jsonl
