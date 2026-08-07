@@ -112,6 +112,11 @@ These may be used later to compare baseline attack success rate against the guar
 8. Expand evaluation to additional models/scenarios.
 
 ## Change Log
+- Began Llama Guard integration by importing `LlamaGuard3Detector` into `sandbox/attack_testing/llm_agent.py`.
+- Initialized `LlamaGuard3Detector` inside `LLMAgent.__init__()` using mock mode for initial integration testing.
+- Added an input guardrail check inside `LLMAgent.generate_response()` before `self.client.invoke(messages)`. Inputs classified as attacks are blocked and redirected to `escalate_to_human`.
+- Verified the initial input-guardrail integration in mock mode: a test prompt containing instruction-override/bypass language was classified as an attack and blocked before reaching the target LLM.
+- Completed the initial Llama Guard integration in mock mode. Attack-like inputs are blocked before reaching the target LLM, while benign inputs are allowed through normally.
 
 ### August 7, 2026
 

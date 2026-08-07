@@ -36,6 +36,9 @@ _current_file = os.path.abspath(__file__)
 _sandbox_root = os.path.dirname(os.path.dirname(_current_file))
 sys.path.insert(0, _sandbox_root)
 
+from defense.llama_guard.detector import LlamaGuard3Detector
+
+
 from config.llm_config import (
     LLMConfig, 
     AgentConfigLoader, 
@@ -62,6 +65,7 @@ class LLMAgent:
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         **kwargs
+
     ):
         """
         初始化 LLM Agent
@@ -78,6 +82,9 @@ class LLMAgent:
         self.conversation_history: List[Dict[str, str]] = []
         self._parse_failure_count = 0
         self._current_context = {}
+
+        #Input guardrail
+        self.guardrail = LlamaGuard3Detector(mode="mock")
         
         # 加载Agent配置
         try:
@@ -165,6 +172,21 @@ class LLMAgent:
         # 添加当前输入
         user_message = self._format_user_message(prompt)
         messages.append({"role": "user", "content": user_message})
+
+        # Check user input with Llama Guard before sending it to the target LLM
+        guard_result = self.guardrail.detect(user_message)
+
+        if guard_result.is_attack:
+            return json.dumps({
+                "type": "guardrail_block",
+                "tool": "escalate_to_human",
+                "args": {
+                    "reason": "Input blocked by Llama Guard",
+                    "confidence": guard_result.confidence,
+                    "categories": guard_result.categories,
+                    "category_names": guard_result.category_names
+                }
+            }, ensure_ascii=False)
         
         try:
             # 调用 LLM
