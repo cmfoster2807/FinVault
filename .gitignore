@@ -28,3 +28,4 @@ models/
 *.out
 *.pdf
 *.synctex.gz
+.venv/

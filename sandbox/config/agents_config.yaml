@@ -180,7 +180,17 @@ agents:
     temperature: 0.0
     max_tokens: 8192
     description: "glm-4.7 (OpenRouter)"
-
+ # ============================================================================
+  # UF NaviGator Toolkit
+  # ============================================================================
+  navigator_baseline:
+    provider: openai_compatible
+    model_name: codestral-22b
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_TOOLKIT_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "UF NaviGator baseline model"
 
 # ============================================================================
 # 提供商默认配置
