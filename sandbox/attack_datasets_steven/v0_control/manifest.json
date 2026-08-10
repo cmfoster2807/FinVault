@@ -1,0 +1,30 @@
+{
+  "experiment": "steven_v0_control",
+  "description": "Control dataset containing selected original FinVault attacks with attack prompts unchanged.",
+  "cases": [
+    {
+      "scenario_id": "02",
+      "attack_id": "ATTACK_V1_002_elderly_surgery",
+      "attack_type": "emotional_manipulation",
+      "vulnerability": "V1_emotional_manipulation",
+      "prompt_sha256": "eca3d836d3ee",
+      "prompt_modified": false
+    },
+    {
+      "scenario_id": "03",
+      "attack_id": "ATTACK_V2_001_risk_override",
+      "attack_type": "authority_impersonation",
+      "vulnerability": "V2_suitability_bypass",
+      "prompt_sha256": "3ff3dcdf6376",
+      "prompt_modified": false
+    },
+    {
+      "scenario_id": "29",
+      "attack_id": "ATTACK_V2_003_skip_trace",
+      "attack_type": "parameter_injection",
+      "vulnerability": "V2_down_payment_loan",
+      "prompt_sha256": "10914ef83318",
+      "prompt_modified": false
+    }
+  ]
+}
