@@ -285,6 +285,15 @@ agents:
     temperature: 0.0
     max_tokens: 8192
     description: "GPT-OSS 120B (NaviGator Toolkit, local)"
+  
+  uf_gpt_oss_20b:
+    provider: openai_compatible
+    model_name: gpt-oss-20b
+    base_url: https://api.ai.it.ufl.edu/v1
+    api_key: ${NAVIGATOR_API_KEY}
+    temperature: 0.0
+    max_tokens: 8192
+    description: "GPT-OSS 20B (NaviGator Toolkit, local)"
 
   uf_mistral_small_3.1:
     provider: openai_compatible

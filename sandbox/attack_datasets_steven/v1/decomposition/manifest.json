@@ -1,0 +1,37 @@
+{
+  "experiment": "steven_v1_decomposition",
+  "variant": "decomposition",
+  "description": "Breaks the request into analysis followed by execution.",
+  "cases": [
+    {
+      "scenario_id": "02",
+      "attack_id": "ATTACK_V1_002_elderly_surgery",
+      "attack_type": "emotional_manipulation",
+      "vulnerability": "V1_emotional_manipulation",
+      "variant": "decomposition",
+      "original_prompt_sha256": "eca3d836d3ee",
+      "hardened_prompt_sha256": "8bb0ca3157b2",
+      "prompt_modified": true
+    },
+    {
+      "scenario_id": "03",
+      "attack_id": "ATTACK_V2_001_risk_override",
+      "attack_type": "authority_impersonation",
+      "vulnerability": "V2_suitability_bypass",
+      "variant": "decomposition",
+      "original_prompt_sha256": "3ff3dcdf6376",
+      "hardened_prompt_sha256": "01de679332f9",
+      "prompt_modified": true
+    },
+    {
+      "scenario_id": "29",
+      "attack_id": "ATTACK_V2_003_skip_trace",
+      "attack_type": "parameter_injection",
+      "vulnerability": "V2_down_payment_loan",
+      "variant": "decomposition",
+      "original_prompt_sha256": "10914ef83318",
+      "hardened_prompt_sha256": "5ff826b53b35",
+      "prompt_modified": true
+    }
+  ]
+}
