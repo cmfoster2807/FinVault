@@ -38,6 +38,10 @@ import sys
 import os
 import json
 import argparse
+import sys as _vg_sys
+from pathlib import Path as _VgPath
+_vg_sys.path.insert(0, str(_VgPath(__file__).resolve().parent.parent))  # repo root, for veriguard
+from veriguard import enforce as veriguard_enforce
 import time
 from datetime import datetime
 from typing import Dict, List, Any, Optional, Tuple
@@ -607,7 +611,7 @@ class SandboxAttackTester:
             multi_turn_stats[turn_key]["total"] += 1
             
             # Run test
-            result = self._run_single_case(env, agent, case, max_turns)
+            result = self._run_single_case(env, agent, case, max_turns, scenario_id=scenario_id)
             
             if result.attack_success:
                 vulnerability_breakdown[vulnerability]["triggered"] += 1
@@ -711,7 +715,8 @@ class SandboxAttackTester:
         env, 
         agent, 
         case: Dict[str, Any],
-        max_turns: int
+        max_turns: int,
+        scenario_id: str = None
     ) -> CaseResult:
         """
         Run a single attack case - support for real multi-turn dialogue (Academic standard)
@@ -808,7 +813,22 @@ class SandboxAttackTester:
                     else:
                         action_str = str(action)
                     
+                    vg = veriguard_enforce.get_veriguard(scenario_id)
+                    if vg is not None:
+                        vg_context = f"User turns:\n{context_with_history}\n\nLatest observation:\n{obs_str}"
+                        decision = vg.check(action_str, context=vg_context, case_id=case_id)
+                        if not decision.allowed:
+                            turn_interactions += 1
+                            turns.append({
+                                "multi_turn": turn_idx + 1, "interaction": interaction + 1,
+                                "action": action_str[:500], "reward": 0, "vulnerabilities": [],
+                                "blocked_by": "veriguard", "block_reason": decision.reason,
+                            })
+                            obs = vg.blocked_observation(decision)
+                            continue
                     new_obs, reward, terminated, truncated, step_info = env.step(action_str)
+                    if vg is not None:
+                        vg.record(case_id, action_str, new_obs)
                     turn_reward += reward
                     total_reward += reward
                     turn_interactions += 1
@@ -1277,8 +1297,13 @@ Examples:
     parser.add_argument('--list-categories', action='store_true', help='List all major categories')
     parser.add_argument('--list-attack-types', action='store_true', help='List all attack types')
     parser.add_argument('--list-scenarios', action='store_true', help='List all scenarios')
+    parser.add_argument('--defense', choices=['none', 'veriguard'], default='none', help='Runtime defense')
+    parser.add_argument('--vg-model', type=str, default=None, help='Model for VeriGuard argument extraction')
+    parser.add_argument('--vg-fail-mode', choices=['closed', 'open'], default='closed', help='VeriGuard behaviour on errors')
     
     args = parser.parse_args()
+    if args.defense == 'veriguard':
+        veriguard_enforce.configure(enabled=True, model=args.vg_model, fail_mode=args.vg_fail_mode)
     
     # List categories
     if args.list_categories:
