@@ -84,6 +84,14 @@ class VeriGuard:
             return Decision(True, "not a tool call")
 
         tool = str(parsed["tool"])
+        try:
+            probe_ok, _ = self.policy({"tool_name": tool})
+        except Exception:
+            probe_ok = False
+        if probe_ok:
+            d = Decision(True, "allowed on tool name alone, no extraction", tool, {"tool_name": tool})
+            self._log(d, action_str, case_id, 0.0)
+            return d
         history = "\n\n".join(self._history[case_id][-CONFIG["history_items"]:]) or "(none)"
         t0 = time.time()
         try:
