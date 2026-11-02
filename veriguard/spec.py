@@ -45,9 +45,21 @@ def load_spec(scenario_id) -> dict:
     if not request:
         raise ValueError(f"{path}: '## Security request' section is empty")
     tools = _tool_definitions(sid)
+    agent_spec = f"{agent}\n\nTool definitions:\n{tools}"
+    # The paper's agent specification S includes the agent's I/O data structures. scenario.py often
+    # lists tools without their parameters, so also include the agent's own instructions (which
+    # document each tool's parameters and return fields), with vulnerability lines removed.
+    # VERIGUARD_SPEC_TOOLDOCS=0 restores the original behaviour.
+    if os.environ.get("VERIGUARD_SPEC_TOOLDOCS", "1") != "0":
+        try:
+            from .draft_specs import scenario_instructions
+            agent_spec += ("\n\nAgent instructions (tool parameters and return fields; this is the only "
+                           "data available to the agent and the policy):\n" + scenario_instructions(sid))
+        except Exception as e:
+            agent_spec += f"\n\n(agent instructions unavailable: {e!r})"
     return {
         "scenario_id": sid,
         "path": str(path),
         "request": request,
-        "agent_spec": f"{agent}\n\nTool definitions:\n{tools}",
+        "agent_spec": agent_spec,
     }

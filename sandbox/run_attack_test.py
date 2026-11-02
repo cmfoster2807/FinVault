@@ -1297,13 +1297,13 @@ Examples:
     parser.add_argument('--list-categories', action='store_true', help='List all major categories')
     parser.add_argument('--list-attack-types', action='store_true', help='List all attack types')
     parser.add_argument('--list-scenarios', action='store_true', help='List all scenarios')
-    parser.add_argument('--defense', choices=['none', 'veriguard'], default='none', help='Runtime defense')
+    parser.add_argument('--defense', choices=['none', 'veriguard', 'guardrail'], default='none', help='Runtime defense')
     parser.add_argument('--vg-model', type=str, default=None, help='Model for VeriGuard argument extraction')
     parser.add_argument('--vg-fail-mode', choices=['closed', 'open'], default='closed', help='VeriGuard behaviour on errors')
     
     args = parser.parse_args()
-    if args.defense == 'veriguard':
-        veriguard_enforce.configure(enabled=True, model=args.vg_model, fail_mode=args.vg_fail_mode)
+    if args.defense in ('veriguard', 'guardrail'):
+        veriguard_enforce.configure(enabled=True, defense=args.defense, model=args.vg_model, fail_mode=args.vg_fail_mode)
     
     # List categories
     if args.list_categories:

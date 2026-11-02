@@ -191,9 +191,12 @@ def run_one(args, sid, arm, dataset, budget_state):
     if summary_path.exists():
         return json.loads(summary_path.read_text(encoding="utf-8"))
 
+    est = estimate_cost(args, arm, dataset)
     with _spent_lock:
-        if budget_state["spent"] >= args.budget:
+        if budget_state["spent"] + budget_state["reserved"] + est > args.budget:
+            budget_state["skipped"] += 1
             return None
+        budget_state["reserved"] += est
 
     cfg = ARMS[arm]
     usage = d / f"{tag}.usage.jsonl"
@@ -235,12 +238,28 @@ def run_one(args, sid, arm, dataset, budget_state):
         (d / f"{tag}.failed.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     with _spent_lock:
         budget_state["spent"] += run_cost
+        budget_state["reserved"] -= est
         spent = budget_state["spent"]
     status = "ok" if summary["ok"] else f"FAILED (exit {rc}, see {tag}.stdout.txt)"
     asr = f"{parsed['succ']}/{parsed['total']}" if parsed["total"] is not None else "-"
     print(f"[{sid}] {arm:15s} {dataset:9s} {status:6s} succ {asr:7s} blocks {summary['blocks']:3d} "
           f"${run_cost:.3f}  (total ${spent:.2f} / ${args.budget:.2f})", flush=True)
     return summary
+
+
+DEFAULT_EST = {"original": 0.02, "benign": 0.02, "synthesis": 0.60}
+
+
+def estimate_cost(args, arm, dataset):
+    """Average cost of finished runs with the same arm and dataset; a cautious default otherwise."""
+    costs = []
+    for f in args.out.glob(f"*/{arm}__{dataset}.summary.json"):
+        try:
+            costs.append(json.loads(f.read_text(encoding="utf-8"))["cost"])
+        except Exception:
+            pass
+    base = sum(costs) / len(costs) if costs else DEFAULT_EST.get(dataset, 0.5)
+    return base * 1.5  # headroom: scenarios differ in size
 
 
 def spent_so_far(args):
@@ -340,6 +359,9 @@ def main():
     ap.add_argument("--out", default=None, help="Results dir (default results/suite_<agent>)")
     ap.add_argument("--prepare", action="store_true", help="Only build specs, benign data and policies")
     ap.add_argument("--report", action="store_true", help="Only print tables from finished runs")
+    ap.add_argument("--estimate", action="store_true", help="Print the planned runs and estimated cost, run nothing")
+    ap.add_argument("--force-benign", action="store_true",
+                    help="Run benign even if the runner does not list it (it loads it from the synthesis folder)")
     args = ap.parse_args()
 
     args.out = Path(args.out or REPO / "results" / f"suite_{args.agent}")
@@ -356,7 +378,7 @@ def main():
         return
 
     datasets = [d for d in DATASET_ORDER if d in args.datasets.split(",")]
-    if "benign" in datasets and not preflight_benign(args):
+    if "benign" in datasets and not args.force_benign and not preflight_benign(args):
         print("WARNING: the runner does not list 'benign' as an attack type; skipping benign runs. "
               "Tell Claude the output of: python sandbox/run_attack_test.py --list-attack-types")
         datasets.remove("benign")
@@ -373,14 +395,27 @@ def main():
                 if not (args.out / sid / f"{arm}__{ds}.summary.json").exists():
                     jobs.append((sid, arm, ds))
 
-    budget_state = {"spent": spent_so_far(args)}
+    if args.estimate:
+        by = defaultdict(lambda: [0, 0.0])
+        for sid, arm, ds in jobs:
+            by[(arm, ds)][0] += 1
+            by[(arm, ds)][1] += estimate_cost(args, arm, ds) / 1.5
+        total = 0.0
+        for (arm, ds), (n, c) in sorted(by.items()):
+            total += c
+            print(f"  {arm:15s} {ds:9s} {n:3d} runs  ~${c:6.2f}")
+        print(f"== {len(jobs)} runs, estimated ~${total:.2f} (from finished-run averages; "
+              f"spent so far ${spent_so_far(args):.2f})")
+        return
+    budget_state = {"spent": spent_so_far(args), "reserved": 0.0, "skipped": 0}
     print(f"== {len(jobs)} runs still to do; spent so far ${budget_state['spent']:.2f} of ${args.budget:.2f}")
     with ThreadPoolExecutor(max_workers=args.jobs) as ex:
         futures = [ex.submit(run_one, args, sid, arm, ds, budget_state) for sid, arm, ds in jobs]
         for _ in as_completed(futures):
             pass
-    if budget_state["spent"] >= args.budget:
-        print(f"== budget reached (${budget_state['spent']:.2f}); rerun with a higher --budget to continue")
+    if budget_state["skipped"]:
+        print(f"== {budget_state['skipped']} runs not started to stay under ${args.budget:.2f} "
+              f"(spent ${budget_state['spent']:.2f}); rerun with a higher --budget to continue")
     report(args)
 
 

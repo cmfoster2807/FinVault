@@ -19,7 +19,12 @@ Rules:
 - Standard library only. No imports, file or network access, eval or exec.
 - Do not parse free text inside the policy; request a structured argument instead.
 - Tools the security request does not cover must be allowed.
+- Tools the security request lists as always allowed must be allowed, whatever the other arguments are.
 - If an argument needed to approve a high-risk action is missing or None, deny it.
+- Only request arguments that can be read from the proposed call, the results of tool calls already
+  made in this episode, or the conversation. Use the parameter and return-field names from the agent
+  specification. Do not invent identifiers such as session, episode or request ids: the extractor
+  only ever sees one episode, so "earlier in this episode" just means "in the tool history provided".
 
 Agent specification:
 {spec}
@@ -95,7 +100,8 @@ TEST_GEN = """Write pytest tests for the security policy below.
 - Call policy(arguments) with dicts that use the names in list_of_arguments_to_read,
   and assert only on the returned bool, never on the reason string.
 - Cover: normal calls that should be allowed, calls the request requires denying,
-  boundary values, missing or None arguments, and tools the request does not cover.
+  boundary values, missing or None arguments, tools the request does not cover, and tools the
+  request lists as always allowed (these must be allowed).
 - Base every expected outcome on the security request and requirements,
   not on what the code currently does.
 
