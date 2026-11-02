@@ -127,3 +127,20 @@ actions, since FinVault's ASR alone will not show utility loss.
   its own: the policy only judges what the extractor reports.
 - If the runner's parallel mode uses spawned processes rather than forked ones, call
   `configure()` inside each worker too.
+
+## Full suite (all scenarios, all arms)
+
+```bash
+python -m veriguard.patch_runner_guardrail          # once: adds --defense guardrail to the runner
+python -m veriguard.run_suite --prepare --budget 2  # draft specs, benign data, policies (cheap)
+python -m veriguard.run_suite --budget 20 --jobs 3  # all runs; rerun the same command to resume
+python -m veriguard.run_suite --report              # tables only
+```
+
+Arms: none, guardrail (paper's baseline), veriguard (paper's method), veriguard_hist (ablation:
+extractor sees executed tool history only). Datasets: original attacks, benign (normal datasets,
+any block = false positive), and the 8 synthesis attack types. Results go to
+`results/suite_<agent>/<scenario>/`, with stdout, guard decision log and token usage for every run,
+and `report.txt` holds the paper-style tables. Specs are auto-drafted into `specs_auto/` by one
+fixed prompt from each scenario's base system prompt (vulnerability lines removed); policies for
+the suite live in `policies_<model>/`, separate from the hand-written scenario 02 work.

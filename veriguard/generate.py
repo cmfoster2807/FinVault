@@ -10,6 +10,7 @@ intermediate artifact to veriguard/runs/ for reproducibility.
 """
 import argparse
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -23,7 +24,7 @@ from .util import check_policy_code, extract_code
 from .verify_nagini import verify as nagini_verify
 
 ROOT = Path(__file__).resolve().parent
-POLICY_DIR = ROOT / "policies"
+POLICY_DIR = Path(os.environ.get("VERIGUARD_POLICY_DIR") or ROOT / "policies")
 RUN_DIR = ROOT / "runs"
 
 
@@ -130,7 +131,7 @@ def synthesize(scenario_id, model, max_iters, verify) -> dict:
                 break
             feedback = f"Nagini rejected the previous attempt:\n{out}\nFix the contracts."
 
-    POLICY_DIR.mkdir(exist_ok=True)
+    POLICY_DIR.mkdir(parents=True, exist_ok=True)
     RUN_DIR.mkdir(exist_ok=True)
     stamp = time.strftime("%Y%m%d-%H%M%S")
     header = (f"# VeriGuard policy for FinVault scenario {sid}\n"

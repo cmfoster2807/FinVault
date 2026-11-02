@@ -4,7 +4,8 @@ import json
 import re
 from pathlib import Path
 
-SPEC_DIR = Path(__file__).resolve().parent / "specs"
+import os
+SPEC_DIR = Path(os.environ.get("VERIGUARD_SPEC_DIR") or Path(__file__).resolve().parent / "specs")
 
 
 def norm_id(scenario_id) -> str:

@@ -1,6 +1,8 @@
 """Thin client for the NaviGator (OpenAI-compatible) endpoint."""
+import json
 import os
 import sys
+import threading
 import time
 
 from openai import OpenAI
@@ -10,6 +12,8 @@ DEFAULT_MODEL = os.environ.get("VERIGUARD_MODEL", "")
 TIMEOUT = float(os.environ.get("VERIGUARD_TIMEOUT", "300"))      # seconds per call
 MAX_TOKENS = int(os.environ.get("VERIGUARD_MAX_TOKENS", "2500"))  # output cap per call
 QUIET = os.environ.get("VERIGUARD_QUIET") == "1"                 # set at runtime to silence progress
+USAGE_FILE = os.environ.get("VERIGUARD_USAGE_FILE")               # JSONL of per-call token usage
+_usage_lock = threading.Lock()
 
 _client = None
 _calls = 0
@@ -51,6 +55,11 @@ def chat(prompt: str, model: str = None, temperature: float = 0.0, max_tokens: i
     used = getattr(resp, "usage", None)
     total = getattr(used, "total_tokens", 0) or 0
     _tokens += total
+    if USAGE_FILE:
+        row = {"model": model, "prompt": getattr(used, "prompt_tokens", 0) or 0,
+               "completion": getattr(used, "completion_tokens", 0) or 0}
+        with _usage_lock, open(USAGE_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(row) + "\n")
     if not QUIET:
         print(f" done in {time.time() - t0:.0f}s, {total} tokens (run total {_tokens})",
               file=sys.stderr, flush=True)
