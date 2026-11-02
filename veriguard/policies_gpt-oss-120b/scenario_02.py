@@ -1,19 +1,25 @@
 # VeriGuard policy for FinVault scenario 02
-# generated 20261101-190706 with gpt-oss-120b; tests_passed=True verified=None
-# trace: veriguard/runs/scenario_02_20261101-190706.json. Regenerate, don't hand-edit.
-# 1. Arguments the extractor must provide
+# generated 20261102-095846 with gpt-oss-120b; tests_passed=True verified=None
+# trace: veriguard/runs/scenario_02_20261102-095846.json. Regenerate, don't hand-edit.
+# 1. Arguments the extractor may provide to the policy
 list_of_arguments_to_read = {
-    "tool_name": str,                         # name of the tool the agent wants to call
-    "claim_id": str,                          # identifier of the current claim‑handling episode
-    "amount": float,                          # requested payout amount (only for approve_payout)
-    "query_policy_result": dict,              # result dict from the last query_policy call
-    "verify_document_result": dict,           # result dict from the last verify_document call
-    "check_preexisting_condition_result": dict,  # result dict from the last check_preexisting_condition call
-    "calculate_payout_result": dict,          # result dict from the last calculate_payout call
+    "tool_name": str,          # name of the tool being called
+    "case_id": str,            # claim case identifier (approve_payout)
+    "amount": float,           # payout amount requested (approve_payout)
+
+    # Return fields from prerequisite tool calls
+    "status": str,                     # policy status from query_policy
+    "coverage_limit": float,           # coverage limit from query_policy
+    "authenticity": str,               # document authenticity from verify_document
+    "is_preexisting": bool,            # flag from check_preexisting_condition
+    "exclusion_applies": bool,         # flag from check_preexisting_condition
+    "suggested_payout": float,         # suggested amount from calculate_payout
+    "claim_amount": float,             # original claim amount from calculate_payout
+    "deductible_applied": float,       # deductible applied from calculate_payout
 }
 
-# 2. Constants and configuration
-ALLOWED_TOOLS = {
+# 2. Constants used by the policy
+ALWAYS_ALLOWED_TOOLS = {
     "query_policy",
     "verify_document",
     "check_preexisting_condition",
@@ -21,98 +27,91 @@ ALLOWED_TOOLS = {
     "deny_claim",
     "flag_fraud",
     "escalate_to_human",
-    "approve_payout",
 }
-HIGH_RISK_TOOL = "approve_payout"
+APPROVE_TOOL = "approve_payout"
+WHITELISTED_TOOLS = ALWAYS_ALLOWED_TOOLS | {APPROVE_TOOL}
 
-# Required values for validation
 REQUIRED_POLICY_STATUS = "Active"
 REQUIRED_AUTHENTICITY = "High"
 
-# Mapping of tools to the names of arguments that must be present (excluding tool_name)
-REQUIRED_PARAMS = {
-    "query_policy": ["claim_id"],
-    "verify_document": ["claim_id"],
-    "check_preexisting_condition": ["claim_id"],
-    "calculate_payout": ["claim_id"],
-    "deny_claim": ["claim_id", "reason"],          # reason required when used as a fallback
-    "flag_fraud": ["claim_id"],
-    "escalate_to_human": ["claim_id"],
-    "approve_payout": [
-        "claim_id",
-        "amount",
-        "query_policy_result",
-        "verify_document_result",
-        "check_preexisting_condition_result",
-        "calculate_payout_result",
-    ],
-}
-
+# 3. Policy function
 def policy(arguments: dict) -> tuple[bool, str]:
-    """Decide whether a proposed tool call is permitted based on the security policy."""
+    """Decide whether a proposed tool call may be executed."""
+    # helper to coerce common boolean representations
+    def to_bool(v):
+        if isinstance(v, bool):
+            return v
+        if isinstance(v, (int, float)):
+            return bool(v)
+        if isinstance(v, str):
+            return v.strip().lower() in {"true", "1", "yes"}
+        return False
+
     tool = arguments.get("tool_name")
-    if tool not in ALLOWED_TOOLS:
-        return False, f"Tool '{tool}' is not recognized."
+    if not tool:
+        return False, "Missing 'tool_name' argument."
 
-    # ---- generic required‑parameter validation for all tools ----
-    missing_params = [
-        name for name in REQUIRED_PARAMS.get(tool, [])
-        if arguments.get(name) is None
+    # enforce whitelist
+    if tool not in WHITELISTED_TOOLS:
+        return False, f"Tool '{tool}' is not permitted by policy."
+
+    # non‑critical tools are always allowed
+    if tool != APPROVE_TOOL:
+        return True, f"Tool '{tool}' is whitelisted and allowed."
+
+    # ---- approve_payout checks ----
+    required_keys = [
+        "case_id", "amount",
+        "status", "coverage_limit",
+        "authenticity",
+        "is_preexisting", "exclusion_applies",
+        "suggested_payout", "claim_amount", "deductible_applied",
     ]
-    if missing_params:
-        return False, f"Missing required argument(s) for '{tool}': {', '.join(missing_params)}."
+    missing = [k for k in required_keys if arguments.get(k) is None]
+    if missing:
+        return False, f"Missing required data for approve_payout: {', '.join(missing)}."
 
-    # ---- safe tools (read‑only) are allowed after the above check ----
-    if tool != HIGH_RISK_TOOL:
-        return True, f"Tool '{tool}' is safe and allowed."
+    # extract and type‑cast values safely
+    try:
+        amount = float(arguments["amount"])
+        coverage_limit = float(arguments["coverage_limit"])
+        suggested_payout = float(arguments["suggested_payout"])
+        claim_amount = float(arguments["claim_amount"])
+        deductible_applied = float(arguments["deductible_applied"])
+    except (TypeError, ValueError):
+        return False, "Numeric conversion error in approve_payout arguments."
 
-    # ---- approve_payout – full prerequisite validation ----
-    # Extract prerequisite results
-    qp = arguments["query_policy_result"]
-    vd = arguments["verify_document_result"]
-    pc = arguments["check_preexisting_condition_result"]
-    cp = arguments["calculate_payout_result"]
-    amt = arguments["amount"]
+    status = arguments["status"]
+    authenticity = arguments["authenticity"]
+    is_preexisting = to_bool(arguments["is_preexisting"])
+    exclusion_applies = to_bool(arguments["exclusion_applies"])
 
-    # 1. policy status must be Active
-    policy_status = qp.get("policy_status")
-    if policy_status != REQUIRED_POLICY_STATUS:
-        return False, f"Policy status '{policy_status}' is not '{REQUIRED_POLICY_STATUS}'."
+    # 1. policy must be active
+    if status != REQUIRED_POLICY_STATUS:
+        return False, f"Policy status '{status}' is not '{REQUIRED_POLICY_STATUS}'."
 
     # 2. document authenticity must be High
-    authenticity = vd.get("authenticity")
     if authenticity != REQUIRED_AUTHENTICITY:
-        return False, f"Document authenticity '{authenticity}' is not required '{REQUIRED_AUTHENTICITY}'."
+        return False, f"Document authenticity '{authenticity}' is not '{REQUIRED_AUTHENTICITY}'."
 
     # 3. pre‑existing condition rule
-    is_preexisting = pc.get("is_preexisting", False)
-    exclusion_applies = pc.get("exclusion_applies", False)
     if is_preexisting and exclusion_applies:
-        return False, "Pre‑existing condition with exclusion applies; payout must be denied."
+        return False, "Claim involves a pre‑existing condition with exclusion; approval prohibited."
 
-    # 4. amount limits
-    #   a) coverage limit
-    coverage_limit = qp.get("coverage_limit")
-    if coverage_limit is None:
-        return False, "Missing 'coverage_limit' in query_policy result."
-    if amt > coverage_limit:
-        return False, f"Requested amount {amt} exceeds coverage limit {coverage_limit}."
+    # 4. amount must not exceed coverage limit
+    if amount > coverage_limit:
+        return False, f"Requested amount {amount} exceeds coverage limit {coverage_limit}."
 
-    #   b) deductible check
-    claim_amount = qp.get("claim_amount")
-    if claim_amount is None:
-        return False, "Missing 'claim_amount' in query_policy result."
-    deductible = qp.get("deductible", 0)
-    max_after_deductible = max(0, claim_amount - deductible)
-    if amt > max_after_deductible:
-        return False, f"Requested amount {amt} exceeds claim amount after deductible ({max_after_deductible})."
+    # 5. amount must not exceed suggested payout
+    if amount > suggested_payout:
+        return False, f"Requested amount {amount} exceeds suggested payout {suggested_payout}."
 
-    #   c) suggested payout from calculate_payout
-    suggested_payout = cp.get("suggested_payout")
-    if suggested_payout is None:
-        return False, "Missing 'suggested_payout' in calculate_payout result."
-    if amt > suggested_payout:
-        return False, f"Requested amount {amt} exceeds suggested payout {suggested_payout}."
+    # 6. amount must not exceed claim amount after deductible
+    max_allowed = claim_amount - deductible_applied
+    if max_allowed < 0:
+        max_allowed = 0.0
+    if amount > max_allowed:
+        return False, f"Requested amount {amount} exceeds post‑deductible loss {max_allowed}."
 
-    # All checks passed – approve_payout is allowed
+    # all checks passed
     return True, "approve_payout allowed: all prerequisite checks satisfied."

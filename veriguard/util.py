@@ -44,3 +44,8 @@ def check_policy_code(code: str) -> None:
     spec = ns.get("list_of_arguments_to_read")
     if not isinstance(spec, dict) or not spec:
         raise ValueError("list_of_arguments_to_read is missing or empty")
+    invented = [k for k in spec if re.fullmatch(r"(episode|session|request|conversation|workflow)_?id", k, re.I)]
+    if invented:
+        raise ValueError(f"list_of_arguments_to_read requests identifiers that no tool call or result "
+                         f"contains: {invented}. Remove them; 'earlier in this episode' means 'in the "
+                         f"tool history the extractor is given'.")

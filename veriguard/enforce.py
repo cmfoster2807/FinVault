@@ -70,6 +70,47 @@ def get_veriguard(scenario_id):
         return _CACHE[sid]
 
 
+_ALLOW_LINE = re.compile(r"always[\s\-\u2010\u2011\u2012\u2013]*allowed", re.I)
+
+
+def always_allowed_tools(scenario_id) -> set:
+    """Tool names in the spec's allow-list line(s) (lines saying 'always allowed').
+
+    Only names that are real tools of the scenario count, so prose words are ignored.
+    """
+    try:
+        spec = load_spec(scenario_id)
+    except Exception:
+        return set()
+    lines = [l for l in spec["request"].splitlines() if _ALLOW_LINE.search(l)]
+    names = set(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", " ".join(lines)))
+    known = set(re.findall(r"\b([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\b", spec["agent_spec"]))
+    # Shortcut a tool only if the scenario's own definitions rate it low-risk (L1/L2). Tools rated
+    # L3/L4, or not rated at all, go to the policy / judge. This can only add checks, never remove one.
+    levels = tool_levels(scenario_id, spec)
+    return {n for n in names if n in known and levels.get(n) in ("1", "2")}
+
+
+def tool_levels(scenario_id, spec=None) -> dict:
+    """Permission level (1-4) per tool from the scenario's own tool definitions / summary table."""
+    sid = norm_id(scenario_id)
+    text = (spec or load_spec(sid))["agent_spec"]
+    summary = ROOT.parent / "sandbox" / "prompts" / f"prompt_{sid}.py"
+    if summary.exists():
+        text += "\n" + summary.read_text(encoding="utf-8", errors="ignore")
+    levels = {}
+    for name in set(re.findall(r"\b([a-z][a-z0-9]*(?:_[a-z0-9]+)+)\b", text)):
+        found = [m.group(1) for m in re.finditer(
+            rf"\b{re.escape(name)}\b[^\n]{{0,12}}(?:\n[^\n]{{0,30}})?\bL([1-4])\b", text)]
+        if found:
+            levels[name] = max(found)  # if sources disagree, take the riskier rating
+    return levels
+
+
+def high_risk_tools(scenario_id, spec=None) -> set:
+    return {n for n, lv in tool_levels(scenario_id, spec).items() if lv in ("3", "4")}
+
+
 def _parse_tool_call(action_str):
     try:
         parsed = json.loads(action_str)
@@ -86,6 +127,16 @@ class _Guard:
     def __init__(self, scenario_id):
         self.sid = norm_id(scenario_id)
         self._history = defaultdict(list)  # case_id -> executed calls and results
+        self.always_allowed = always_allowed_tools(self.sid)
+
+    def _allow_listed(self, action_str, case_id, tool):
+        """The spec's explicit allow-list is enforced deterministically, for both defenses."""
+        if tool in self.always_allowed:
+            d = Decision(True, "allowed on tool name alone, no extraction (spec allow-list)", tool,
+                         {"tool_name": tool})
+            self._log(d, action_str, case_id, 0.0, "", "")
+            return d
+        return None
 
     def record(self, case_id, action_str: str, observation) -> None:
         """Call after every executed env.step() so later checks can see episode history."""
@@ -143,18 +194,6 @@ class VeriGuard(_Guard):
         mod_spec.loader.exec_module(mod)
         self.policy = mod.policy
         self.arg_spec = mod.list_of_arguments_to_read
-        # Tools the spec declares always allowed may skip extraction. Every other tool is extracted
-        # and checked, even if the policy would allow it on its name alone: a name-only probe never
-        # sees the call's own arguments (e.g. a bypass flag), so trusting it can skip real checks.
-        try:
-            spec = load_spec(self.sid)
-            self.always_text = " ".join(l for l in spec["request"].splitlines() if "always" in l.lower())
-        except Exception:
-            self.always_text = ""
-
-    def _spec_always_allowed(self, tool: str) -> bool:
-        return bool(self.always_text) and re.search(rf"(?<![\w]){re.escape(tool)}(?![\w])",
-                                                    self.always_text) is not None
 
     def check(self, action_str: str, context: str = "", case_id=None) -> Decision:
         tool = _parse_tool_call(action_str)
@@ -162,16 +201,9 @@ class VeriGuard(_Guard):
             return Decision(True, "not a tool call")
         history, ctx = self._inputs(case_id, context)
 
-        # Cost saving: skip extraction only for tools the spec lists as always allowed AND the
-        # policy allows on their name alone.
-        try:
-            probe_ok, _ = self.policy({"tool_name": tool})
-        except Exception:
-            probe_ok = False
-        if probe_ok and self._spec_always_allowed(tool):
-            d = Decision(True, "allowed on tool name alone, no extraction", tool, {"tool_name": tool})
-            self._log(d, action_str, case_id, 0.0, history, "")
-            return d
+        hit = self._allow_listed(action_str, case_id, tool)
+        if hit:
+            return hit
 
         t0 = time.time()
         try:
@@ -201,6 +233,9 @@ class GuardRail(_Guard):
         tool = _parse_tool_call(action_str)
         if tool is None:
             return Decision(True, "not a tool call")
+        hit = self._allow_listed(action_str, case_id, tool)
+        if hit:
+            return hit
         history, ctx = self._inputs(case_id, context)
         t0 = time.time()
         try:
