@@ -30,7 +30,7 @@ def client() -> OpenAI:
             base_url=os.environ.get("VERIGUARD_BASE_URL", DEFAULT_BASE_URL),
             api_key=key,
             timeout=TIMEOUT,
-            max_retries=1,
+            max_retries=6,  # the SDK backs off exponentially on rate limits and 5xx
         )
     return _client
 

@@ -232,6 +232,10 @@ def run_one(args, sid, arm, dataset, budget_state):
                "ok": rc == 0 and parsed["total"] is not None, "seconds": round(time.time() - t0, 1),
                **parsed, "guard_prompt": gp, "guard_completion": gc, "cost": round(run_cost, 4),
                **parse_guard_log(guard_log), "cmd": " ".join(cmd)}
+    problem = invalid_reason(summary)
+    if summary["ok"] and problem:
+        summary["ok"] = False
+        summary["invalid"] = problem
     if summary["ok"]:
         summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     else:
@@ -262,9 +266,45 @@ def estimate_cost(args, arm, dataset):
     return base * 1.5  # headroom: scenarios differ in size
 
 
+MAX_GUARD_ERROR_RATE = 0.10
+
+
+def invalid_reason(summary):
+    """A run that 'finished' but measured nothing: API failures look like refusals or blocks."""
+    if not summary.get("agent_prompt"):
+        return "agent used 0 tokens (API failure: the runner substitutes escalate_to_human on errors)"
+    calls, errs = summary.get("guard_calls", 0), summary.get("guard_errors", 0)
+    if calls and errs / calls > MAX_GUARD_ERROR_RATE:
+        return f"guard errors {errs}/{calls} exceed {MAX_GUARD_ERROR_RATE:.0%} (fail-closed blocks are not decisions)"
+    return ""
+
+
+def revalidate(args):
+    """Retire finished runs that fail the validity check, so the next run redoes them."""
+    bad = []
+    for f in args.out.glob("*/*.summary.json"):
+        try:
+            summary = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        problem = invalid_reason(summary)
+        if problem:
+            summary["invalid"] = problem
+            f.with_name(f.name.replace(".summary.json", ".invalid.json")).write_text(
+                json.dumps(summary, indent=2), encoding="utf-8")
+            f.unlink()
+            bad.append((summary["scenario"], summary["arm"], summary["dataset"], problem))
+    if bad:
+        print(f"== {len(bad)} finished runs failed the validity check and will be redone:")
+        for sid, arm, ds, why in sorted(bad):
+            print(f"   [{sid}] {arm:15s} {ds:9s} {why}")
+    return bad
+
+
 def spent_so_far(args):
     total = 0.0
-    for f in list(args.out.glob("*/*.summary.json")) + list(args.out.glob("*/*.failed.json")):
+    for f in (list(args.out.glob("*/*.summary.json")) + list(args.out.glob("*/*.failed.json"))
+              + list(args.out.glob("*/*.invalid.json"))):
         try:
             total += json.loads(f.read_text(encoding="utf-8")).get("cost", 0)
         except Exception:
@@ -370,8 +410,13 @@ def main():
     args.out.mkdir(parents=True, exist_ok=True)
 
     if args.report:
+        revalidate(args)
         report(args)
         return
+    env = base_env(args)
+    missing = [k for k in ("VERIGUARD_API_KEY", "NAVIGATOR_API_KEY") if not env.get(k)]
+    if missing and not args.estimate:
+        raise SystemExit(f"Not set in this terminal: {', '.join(missing)}. Run: source ~/veriguard_env.sh")
     scenarios = [s.strip().zfill(2) for s in args.scenarios.split(",")] if args.scenarios else all_scenarios()
     prepare(args, scenarios)
     if args.prepare:
@@ -384,6 +429,7 @@ def main():
         datasets.remove("benign")
 
     arms = [a for a in ARMS if a in args.arms.split(",")]
+    revalidate(args)
     jobs = []
     for ds in datasets:  # cheap, informative datasets first so a partial run is still useful
         for sid in scenarios:
